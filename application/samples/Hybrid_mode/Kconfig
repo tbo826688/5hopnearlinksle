@@ -1,0 +1,15 @@
+# samples/Hybrid_mode/Kconfig
+
+# 定义具体的 Sample 选项
+config SAMPLE_SUPPORT_SLE_UART_HYBRID_SAMPLE
+    bool
+    prompt "Support SLE UART Hybrid Sample."
+    default n
+    depends on ENABLE_HYBRID_MODE_SAMPLE
+    help
+        This option means support SLE UART Hybrid Sample.
+
+# 如果选中了，就引用 sle_uart 文件夹下的 Kconfig 以显示更详细的配置（如 Server/Client 选项）
+if SAMPLE_SUPPORT_SLE_UART_HYBRID_SAMPLE
+    osource "application/samples/Hybrid_mode/sle_uart/Kconfig"
+endif

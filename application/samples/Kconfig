@@ -1,0 +1,55 @@
+#===============================================================================
+# @brief    Kconfig file.
+# Copyright (c) @CompanyNameMagicTag 2023-2023. All rights reserved.
+#===============================================================================
+
+config ENABLE_PERIPHERAL_SAMPLE
+    bool
+    prompt "Enable the Sample of peripheral."
+    default n
+    depends on SAMPLE_ENABLE
+    help
+        This option means enable the sample of peripheral.
+
+if ENABLE_PERIPHERAL_SAMPLE
+osource "application/samples/peripheral/Kconfig"
+endif
+
+config ENABLE_WIFI_SAMPLE
+    bool
+    prompt "Enable the Sample of WIFI."
+    default n
+    depends on SAMPLE_ENABLE
+    help
+        This option means enable the sample of WIFI.
+
+if ENABLE_WIFI_SAMPLE
+osource "application/samples/wifi/Kconfig"
+endif
+
+config ENABLE_PRODUCTS_SAMPLE
+    bool
+    prompt "Enable the Sample of products."
+    default n
+    depends on SAMPLE_ENABLE
+    help
+        This option means enable the sample of products.
+
+if ENABLE_PRODUCTS_SAMPLE
+osource "application/samples/products/Kconfig"
+endif
+# 【新增】定义混合模式的总开关
+config ENABLE_HYBRID_MODE_SAMPLE
+    bool
+    prompt "Enable the Sample of Hybrid Mode."
+    default n
+    depends on SAMPLE_ENABLE
+    help
+        This option means enable the sample of hybrid mode.
+
+# 引用下一级的 Kconfig
+if ENABLE_HYBRID_MODE_SAMPLE
+    osource "application/samples/Hybrid_mode/Kconfig"
+endif
+
+

@@ -1,0 +1,56 @@
+#===============================================================================
+# @brief    Kconfig file for SLE UART SEVER
+#===============================================================================
+
+# [修改] 变量名增加 _SEVER 后缀
+config SLE_UART_SEVER_BUS
+    int
+    prompt "Set the UART BUS of the currrent sample."
+    default 0
+    # [修改] 依赖项改为新的顶层宏
+    depends on SAMPLE_SUPPORT_SLE_UART_SEVER
+    help
+        This option means the UART BUS of the currrent sample.
+
+# [修改] 变量名增加 _SEVER 后缀
+config UART_SEVER_TXD_PIN
+    int
+    prompt "Choose UART TXD pin."
+    depends on SAMPLE_SUPPORT_SLE_UART_SEVER
+    default 17
+
+# [修改] 变量名增加 _SEVER 后缀
+config UART_SEVER_RXD_PIN
+    int
+    prompt "Choose UART RXD pin."
+    depends on SAMPLE_SUPPORT_SLE_UART_SEVER
+    default 18
+
+choice
+    prompt "Select sle uart type"
+    # [修改] 默认值改为新的Server宏
+    default SAMPLE_SUPPORT_SLE_UART_SEVER_SERVER
+    
+    # [修改] Server宏重命名
+    config SAMPLE_SUPPORT_SLE_UART_SEVER_SERVER
+        bool "Enable SLE UART Server sample."
+    
+    # [修改] Client宏重命名
+    config SAMPLE_SUPPORT_SLE_UART_SEVER_CLIENT
+        bool "Enable SLE UART Client sample."
+    
+    # [修改] ALL宏重命名
+    config SAMPLE_SUPPORT_SLE_UART_SEVER_ALL
+        bool "Enable SLE UART Server & Client sample."
+endchoice
+
+config SUPPORT_SLE_PERIPHERAL
+    bool
+    # [修改] 这里的逻辑是追加，如果选中了新的SERVER或ALL，也支持Peripheral
+    # 注意：select 语句通常在顶层 Kconfig 处理，这里使用 default if
+    default y if (SAMPLE_SUPPORT_SLE_UART_SEVER_SERVER || SAMPLE_SUPPORT_SLE_UART_SEVER_ALL)
+
+config SUPPORT_SLE_CENTRAL
+    bool
+    # [修改] 同上
+    default y if (SAMPLE_SUPPORT_SLE_UART_SEVER_CLIENT || SAMPLE_SUPPORT_SLE_UART_SEVER_ALL)

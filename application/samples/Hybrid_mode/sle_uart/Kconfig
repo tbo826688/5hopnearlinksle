@@ -1,0 +1,47 @@
+#===============================================================================
+# @brief    Kconfig file.
+# Copyright (c) @CompanyNameMagicTag 2023-2023. All rights reserved.
+#===============================================================================
+
+# 【修正】depends on 必须对应 samples/Hybrid_mode/Kconfig 中的总开关名
+config SLE_UART_BUS
+    int "Set the UART BUS of the current sample"
+    default 0
+    depends on SAMPLE_SUPPORT_SLE_UART_HYBRID_SAMPLE
+    help
+        This option means the UART BUS of the current sample.
+
+config UART_TXD_PIN
+    int "Choose UART TXD pin"
+    depends on SAMPLE_SUPPORT_SLE_UART_HYBRID_SAMPLE
+    default 17
+
+config UART_RXD_PIN
+    int "Choose UART RXD pin"
+    depends on SAMPLE_SUPPORT_SLE_UART_HYBRID_SAMPLE
+    default 18
+
+choice
+    prompt "Select SLE UART Type"
+    default SAMPLE_SUPPORT_SLE_UART_HYBRID_SERVER_MODE
+
+    # 加上 _HYBRID_ 前缀，避免冲突
+    config SAMPLE_SUPPORT_SLE_UART_HYBRID_SERVER_MODE
+        bool "Enable SLE UART Server sample"
+
+    config SAMPLE_SUPPORT_SLE_UART_HYBRID_CLIENT_MODE
+        bool "Enable SLE UART Client sample"
+        
+    # 改名为 _HYBRID_MODE，解决 "Dependency loop" 死循环
+    config SAMPLE_SUPPORT_SLE_UART_HYBRID_MODE
+        bool "Enable SLE UART Hybrid (Server & Client) sample"
+endchoice
+
+# 依赖逻辑同步更新为新名字
+config SUPPORT_SLE_PERIPHERAL
+    bool
+    default y if (SAMPLE_SUPPORT_SLE_UART_HYBRID_SERVER_MODE || SAMPLE_SUPPORT_SLE_UART_HYBRID_MODE)
+
+config SUPPORT_SLE_CENTRAL
+    bool
+    default y if (SAMPLE_SUPPORT_SLE_UART_HYBRID_CLIENT_MODE || SAMPLE_SUPPORT_SLE_UART_HYBRID_MODE)
