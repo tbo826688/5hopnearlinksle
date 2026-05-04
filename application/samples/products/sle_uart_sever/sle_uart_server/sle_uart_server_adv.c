@@ -32,10 +32,10 @@
 // R2 烧录时填 "SLE_R2"
 // R3 烧录时填 "SLE_R3"
 // R4 烧录时填 "SLE_END" (因为 R4 的下一跳是终点测速Client)
-#define MY_ROUTER_NAME "SLE_R3"
+#define MY_ROUTER_NAME "SLE_R1"
 // 🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴
 
-static uint8_t sle_local_name[NAME_MAX_LENGTH] =MY_ROUTER_NAME;
+static uint8_t sle_local_name[NAME_MAX_LENGTH] = MY_ROUTER_NAME;
 
 static uint16_t sle_set_adv_local_name(uint8_t *adv_data, uint16_t max_len) {
     errno_t ret;

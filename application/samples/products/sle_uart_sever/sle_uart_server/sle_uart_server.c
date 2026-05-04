@@ -9,7 +9,6 @@
 #include "sle_errcode.h"
 #include "sle_connection_manager.h"
 #include "sle_device_discovery.h"
-#include "sle_uart_client.h"
 #include "sle_uart_server_adv.h"
 #include "sle_uart_server.h"
 #include "sle_low_latency.h"
@@ -134,9 +133,6 @@ static errcode_t sle_uart_server_add(void) {
 }
 
 errcode_t sle_uart_server_send_report_by_handle(const uint8_t *data, uint16_t len) {
-    if (g_sle_conn_hdl == 0xFFFF) {
-        return ERRCODE_SLE_FAIL;
-    }
     ssaps_ntf_ind_t param = { .handle = g_property_handle, .type = SSAP_PROPERTY_TYPE_VALUE, .value = (uint8_t *)data, .value_len = len };
     return ssaps_notify_indicate(g_server_id, g_sle_conn_hdl, &param);
 }
@@ -144,19 +140,13 @@ errcode_t sle_uart_server_send_report_by_handle(const uint8_t *data, uint16_t le
 void sle_connect_state_changed_cbk(uint16_t conn_id, const sle_addr_t *addr, sle_acb_state_t conn_state, sle_pair_state_t pair_state, sle_disc_reason_t disc_reason) {
     if (conn_state == SLE_ACB_STATE_CONNECTED) {
         g_sle_conn_hdl = conn_id;
-        g_mtu_negotiated = false;
-        sle_uart_client_pause_scan();
+        g_mtu_negotiated = false; 
         osal_printk("[Router Server] Next Node Linked! Pushing 2.5ms Interval...\r\n");
         sle_connection_param_update_t parame = { .conn_id = conn_id, .interval_min = 0x14, .interval_max = 0x14, .max_latency = 0, .supervision_timeout = 0x1F4 };
         sle_update_connect_param(&parame);  
     } else if (conn_state == SLE_ACB_STATE_DISCONNECTED) {
         g_sle_conn_hdl = 0xFFFF;
         g_mtu_negotiated = false;
-        sle_uart_client_resume_scan();
-        /* connectable adv 被协议栈停了，必须重拉，否则下一跳回归时扫不到我 */
-        /* connectable adv 琚崗璁爤鍋滀簡锛屽繀椤婚噸鎷夛紝鍚﹀垯涓嬩竴璺冲洖褰掓椂鎵笉鍒版垜 */
-        osal_printk("[Router Server] Next node disconnected. Restarting advertise...\r\n");
-        (void)sle_uart_server_adv_init();
     }
 }
 
@@ -165,7 +155,6 @@ void sle_pair_complete_cbk(uint16_t conn_id, const sle_addr_t *addr, errcode_t s
 void sle_server_set_phy_cbk(uint16_t conn_id, errcode_t status, const sle_set_phy_t *param) {
     sle_set_mcs(conn_id, 10);
     osal_printk("\r\n>>> [Router Server] Link to NEXT node upgraded to MCS10! <<<\r\n");
-    sle_uart_client_resume_scan();
 }
 
 static errcode_t sle_conn_register_cbks(void) {

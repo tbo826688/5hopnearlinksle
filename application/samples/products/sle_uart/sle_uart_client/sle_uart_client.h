@@ -13,7 +13,6 @@
 
 void sle_uart_client_init(ssapc_notification_callback notification_cb, ssapc_indication_callback indication_cb);
 void sle_uart_start_scan(void);
-void sle_uart_client_watchdog_tick(void);
 
 // [关键修复] 补充缺失的函数声明
 uint16_t *get_g_sle_uart_client_conn_ids(void);

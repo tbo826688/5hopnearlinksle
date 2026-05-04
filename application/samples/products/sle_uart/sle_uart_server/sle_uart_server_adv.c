@@ -25,7 +25,7 @@
 #define SLE_ADV_HANDLE_DEFAULT                    1
 #define SLE_ADV_DATA_LEN_MAX                      251
 
-static uint8_t sle_local_name[NAME_MAX_LENGTH] ="SLE_SVR";
+static uint8_t sle_local_name[NAME_MAX_LENGTH] ="SLE_SVR";;
 
 static uint16_t sle_set_adv_local_name(uint8_t *adv_data, uint16_t max_len) {
     errno_t ret;
