@@ -25,6 +25,25 @@ uint16_t g_sle_uart_conn_id = 0xFFFF;
 
 uint16_t get_g_sle_uart_conn_id(void) { return g_sle_uart_conn_id; }
 
+static bool sle_adv_data_contains_name(const sle_seek_result_info_t *seek_result_data)
+{
+    const uint8_t *target = (const uint8_t *)SLE_UART_SERVER_NAME;
+    uint8_t target_len = (uint8_t)strlen(SLE_UART_SERVER_NAME);
+    uint8_t i;
+
+    if (seek_result_data == NULL || seek_result_data->data == NULL ||
+        seek_result_data->data_length < target_len) {
+        return false;
+    }
+
+    for (i = 0; i <= seek_result_data->data_length - target_len; i++) {
+        if (memcmp(&seek_result_data->data[i], target, target_len) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void sle_client_set_nv(void) {
     uint16_t nv_value_len = 0;
     uint8_t nv_value = 0;
@@ -50,7 +69,7 @@ void sle_speed_connect_param_init(void) {
 
 void sle_uart_client_sample_seek_result_info_cbk(sle_seek_result_info_t *seek_result_data) {
     if (seek_result_data == NULL) return;
-    if (strstr((const char *)seek_result_data->data, SLE_UART_SERVER_NAME) != NULL) {
+    if (sle_adv_data_contains_name(seek_result_data)) {
         memcpy_s(&g_sle_uart_remote_addr, sizeof(sle_addr_t), &seek_result_data->addr, sizeof(sle_addr_t));
         g_remote_addr_valid = true;
         sle_stop_seek();
@@ -74,6 +93,7 @@ void sle_uart_client_sample_sle_enable_cbk(errcode_t status) {
 void sle_uart_client_sample_seek_enable_cbk(errcode_t status) { (void)status; }
 void sle_uart_client_sample_seek_disable_cbk(errcode_t status) {
     if (status == 0 && g_remote_addr_valid) {
+        sle_remove_paired_remote_device(&g_sle_uart_remote_addr);
         if (sle_connect_remote_device(&g_sle_uart_remote_addr) != 0) sle_uart_start_scan();
     }
 }
@@ -83,8 +103,13 @@ void sle_uart_client_sample_connect_state_changed_cbk(uint16_t conn_id, const sl
     if (conn_state == SLE_ACB_STATE_CONNECTED) {
         g_sle_uart_conn_id = conn_id;
         if (pair_state == SLE_PAIR_NONE) sle_pair_remote_device(&g_sle_uart_remote_addr);
+        else {
+            ssap_exchange_info_t info = { .mtu_size = 1500, .version = 1 };
+            ssapc_exchange_info_req(1, g_sle_uart_conn_id, &info);
+        }
     } else if (conn_state == SLE_ACB_STATE_DISCONNECTED) {
         g_sle_uart_conn_id = 0xFFFF;
+        sle_remove_paired_remote_device(&g_sle_uart_remote_addr);
         sle_uart_start_scan();
     }
 }

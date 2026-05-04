@@ -132,6 +132,7 @@ void sle_connect_state_changed_cbk(uint16_t conn_id, const sle_addr_t *addr, sle
     } else if (conn_state == SLE_ACB_STATE_DISCONNECTED) {
         g_sle_conn_hdl = 0xFFFF;
         g_mtu_negotiated = false;
+        sle_uart_server_adv_init();
     }
 }
 
