@@ -12570,7 +12570,7 @@ hal_sfc_execute_cmds():
 D:\bearpi-picospeed\output\ws63\acore\ws63-loaderboot/../../../../drivers/drivers/hal/sfc/hal_sfc_v150.c:113
         switch ((current_cmd->cmd_type)) {
   a23cb0:	4a05                	li	s4,1
-hal_sfc_execute_type_proc():
+hal_sfc_regs_get_databuf():
 D:\bearpi-picospeed\output\ws63\acore\ws63-loaderboot/../../../../drivers/drivers/hal/sfc/hal_sfc_v150_regs_op.h:158
   a23cb2:	00a07ab7          	lui	s5,0xa07
 hal_sfc_execute_cmds():

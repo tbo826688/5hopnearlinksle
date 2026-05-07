@@ -7477,7 +7477,7 @@ D:\bearpi-picospeed\output\ws63\acore\ws63-flashboot/../../../../drivers/drivers
   a2a4e4:	47c8                	lw	a0,12(a5)
   a2a4e6:	4601                	li	a2,0
   a2a4e8:	9702                	jalr	a4
-uart_rx_buffer_release():
+uart_idle_isr():
 D:\bearpi-picospeed\output\ws63\acore\ws63-flashboot/../../../../drivers/drivers/driver/uart/uart.c:1111
     rx_state->new_rx_pos = 0;
   a2a4ea:	1889145b          	muliadd	s0,s2,s0,24
