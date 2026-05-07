@@ -25,6 +25,8 @@
 #define SLE_UART_TASK_STACK_SIZE            0x2000
 #define THROUGHPUT_PKT_LEN                  1400
 #define THROUGHPUT_PACING_MS                10
+#define SPEED_SAMPLE_INTERVAL_MS            1000
+#define US_PER_SECOND                       1000000ULL
 
 extern uint8_t gle_tx_acb_data_num_get(void);
 extern volatile bool g_mtu_negotiated;
@@ -109,8 +111,54 @@ static void *sle_uart_server_task(const char *arg)
 
 #elif defined(CONFIG_SAMPLE_SUPPORT_SLE_UART_CLIENT)
 
-static uint32_t g_rx_bytes = 0;
-static uint64_t g_last_time_us = 0;
+static volatile uint32_t g_rx_bytes = 0;
+static volatile uint32_t g_rx_packets = 0;
+static volatile uint32_t g_lost_packets = 0;
+static uint16_t g_expected_seq = 0;
+static bool g_seq_valid = false;
+
+typedef struct {
+    uint32_t bytes;
+    uint32_t packets;
+    uint32_t lost_packets;
+} sle_uart_rx_stats_t;
+
+static void sle_uart_rx_stats_add(ssapc_handle_value_t *data)
+{
+    uint16_t seq;
+    uint16_t lost_delta;
+    uint32_t irq_status = osal_irq_lock();
+
+    g_rx_bytes += data->data_len;
+    g_rx_packets++;
+
+    if (data->data_len >= 2) {
+        seq = ((uint16_t)data->data[0] << 8) | data->data[1];
+        if (g_seq_valid) {
+            lost_delta = (uint16_t)(seq - g_expected_seq);
+            if (lost_delta != 0) {
+                g_lost_packets += lost_delta;
+            }
+        } else {
+            g_seq_valid = true;
+        }
+        g_expected_seq = (uint16_t)(seq + 1);
+    }
+
+    osal_irq_restore(irq_status);
+}
+
+static void sle_uart_rx_stats_take(sle_uart_rx_stats_t *stats)
+{
+    uint32_t irq_status = osal_irq_lock();
+    stats->bytes = g_rx_bytes;
+    stats->packets = g_rx_packets;
+    stats->lost_packets = g_lost_packets;
+    g_rx_bytes = 0;
+    g_rx_packets = 0;
+    g_lost_packets = 0;
+    osal_irq_restore(irq_status);
+}
 
 void sle_uart_notification_cb(uint8_t client_id, uint16_t conn_id,
     ssapc_handle_value_t *data, errcode_t status)
@@ -123,20 +171,7 @@ void sle_uart_notification_cb(uint8_t client_id, uint16_t conn_id,
         return;
     }
 
-    g_rx_bytes += data->data_len;
-    uint64_t current_time_us = uapi_tcxo_get_us();
-
-    if (g_last_time_us == 0) {
-        g_last_time_us = current_time_us;
-    } else if (current_time_us - g_last_time_us >= 1000000) {
-        uint32_t bytes_per_sec = g_rx_bytes;
-        uint32_t kbps = (bytes_per_sec * 8) / 1000;
-
-        osal_printk("[5-HOP E2E LIMIT] Speed: %u Bytes/s (%u kbps)\r\n", bytes_per_sec, kbps);
-
-        g_rx_bytes = 0;
-        g_last_time_us = current_time_us;
-    }
+    sle_uart_rx_stats_add(data);
 }
 
 void sle_uart_indication_cb(uint8_t client_id, uint16_t conn_id,
@@ -151,10 +186,33 @@ void sle_uart_indication_cb(uint8_t client_id, uint16_t conn_id,
 static void *sle_uart_client_task(const char *arg)
 {
     unused(arg);
+    uint64_t last_time_us;
+
     sle_uart_client_init(sle_uart_notification_cb, sle_uart_indication_cb);
     osal_printk("[Speed Test] Node6 sink ready. Awaiting 5-hop data.\r\n");
+    last_time_us = uapi_tcxo_get_us();
+
     while (1) {
-        osal_msleep(5000);
+        uint64_t now_us;
+        uint64_t elapsed_us;
+        sle_uart_rx_stats_t stats;
+        uint32_t bytes_per_sec;
+        uint32_t kbps;
+
+        osal_msleep(SPEED_SAMPLE_INTERVAL_MS);
+        now_us = uapi_tcxo_get_us();
+        elapsed_us = now_us - last_time_us;
+        last_time_us = now_us;
+
+        sle_uart_rx_stats_take(&stats);
+        if (stats.bytes == 0 || elapsed_us == 0) {
+            continue;
+        }
+
+        bytes_per_sec = (uint32_t)(((uint64_t)stats.bytes * US_PER_SECOND) / elapsed_us);
+        kbps = (bytes_per_sec * 8) / 1000;
+        osal_printk("[5-HOP E2E LIMIT] Speed: %u Bytes/s (%u kbps), rx_pkt:%u lost:%u\r\n",
+            bytes_per_sec, kbps, stats.packets, stats.lost_packets);
     }
     return NULL;
 }

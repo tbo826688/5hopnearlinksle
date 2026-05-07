@@ -33,7 +33,7 @@
  * R3 -> "SLE_R3"
  * R4 -> "SLE_END"
  */
-#define MY_ROUTER_NAME "SLE_END"
+#define MY_ROUTER_NAME "SLE_R1"
 
 static uint8_t sle_local_name[NAME_MAX_LENGTH] = MY_ROUTER_NAME;
 static bool g_adv_started = false;

@@ -21,7 +21,7 @@
  * R3 -> "SLE_R2"
  * R4 -> "SLE_R3"
  */
-#define TARGET_UPSTREAM_NAME "SLE_R3"
+#define TARGET_UPSTREAM_NAME "SLE_SVR"
 
 #define SLE_INVALID_CONN_ID             0xFFFF
 #define SLE_UPSTREAM_CLIENT_ID          1
