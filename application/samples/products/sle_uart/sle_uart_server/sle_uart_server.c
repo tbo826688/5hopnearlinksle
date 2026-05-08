@@ -140,8 +140,11 @@ void sle_pair_complete_cbk(uint16_t conn_id, const sle_addr_t *addr, errcode_t s
 
 /* 🚀 【致命核心修复】完全抛弃 status 判断！无论如何强开 MCS10！ */
 void sle_server_set_phy_cbk(uint16_t conn_id, errcode_t status, const sle_set_phy_t *param) {
-    osal_printk("\r\n>>> [Server] PHY Callback Triggered! Forcing MCS 10... <<<\r\n");
-    sle_set_mcs(conn_id, 10);
+    unused(param);
+    if (status == ERRCODE_SUCC) {
+        sle_set_mcs(conn_id, 8);
+        osal_printk("[Server] Stable PHY profile applied. MCS8.\r\n");
+    }
 }
 
 static errcode_t sle_conn_register_cbks(void) {

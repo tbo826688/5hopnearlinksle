@@ -21,6 +21,12 @@ extern "C" {
 #define SLE_UUID_TEST_OPERATION_INDICATION  (SSAP_OPERATE_INDICATION_BIT_READ | SSAP_OPERATE_INDICATION_BIT_WRITE)
 #define SLE_UUID_TEST_DESCRIPTOR       (SSAP_PERMISSION_READ | SSAP_PERMISSION_WRITE)
 
+typedef enum {
+    SLE_UART_LINK_PROFILE_STABLE = 0,
+    SLE_UART_LINK_PROFILE_LONG_RANGE,
+    SLE_UART_LINK_PROFILE_HIGH_SPEED
+} sle_uart_link_profile_t;
+
 errcode_t sle_uart_server_init(ssaps_read_request_callback read_callback,
     ssaps_write_request_callback write_callback);
 errcode_t sle_uart_server_send_report_by_uuid(const uint8_t *data, uint8_t len);
@@ -30,6 +36,8 @@ uint16_t get_connect_id(void);
 bool sle_uart_server_has_downstream(void);
 bool sle_uart_server_is_downstream_link(uint16_t conn_id);
 void sle_uart_server_clear_downstream(void);
+void sle_uart_server_set_link_profile(sle_uart_link_profile_t profile);
+sle_uart_link_profile_t sle_uart_server_get_link_profile(void);
 
 void sle_uart_server_enable_cbk(void);
 void sle_connect_state_changed_cbk(uint16_t conn_id, const sle_addr_t *addr,

@@ -21,9 +21,28 @@ static sle_connection_callbacks_t g_sle_uart_connect_cbk = { 0 };
 static ssapc_callbacks_t g_sle_uart_ssapc_cbk = { 0 };
 static sle_addr_t g_sle_uart_remote_addr = { 0 };
 static bool g_remote_addr_valid = false; 
+static bool g_write_ready = false;
+static ssapc_write_param_t g_sle_uart_write_param = { 0 };
 uint16_t g_sle_uart_conn_id = 0xFFFF;
 
 uint16_t get_g_sle_uart_conn_id(void) { return g_sle_uart_conn_id; }
+ssapc_write_param_t *get_g_sle_uart_send_param(void) { return &g_sle_uart_write_param; }
+
+bool sle_uart_client_can_write_upstream(void)
+{
+    return g_sle_uart_conn_id != 0xFFFF && g_write_ready;
+}
+
+errcode_t sle_uart_client_write_upstream_cmd(const uint8_t *data, uint16_t len)
+{
+    if (data == NULL || len == 0 || !sle_uart_client_can_write_upstream()) {
+        return ERRCODE_FAIL;
+    }
+
+    g_sle_uart_write_param.data = (uint8_t *)data;
+    g_sle_uart_write_param.data_len = len;
+    return ssapc_write_cmd(1, g_sle_uart_conn_id, &g_sle_uart_write_param);
+}
 
 static bool sle_adv_data_contains_name(const sle_seek_result_info_t *seek_result_data)
 {
@@ -102,6 +121,7 @@ void sle_uart_client_sample_connect_state_changed_cbk(uint16_t conn_id, const sl
     unused(pair_state);
     if (conn_state == SLE_ACB_STATE_CONNECTED) {
         g_sle_uart_conn_id = conn_id;
+        g_write_ready = false;
         if (pair_state == SLE_PAIR_NONE) sle_pair_remote_device(&g_sle_uart_remote_addr);
         else {
             ssap_exchange_info_t info = { .mtu_size = 1500, .version = 1 };
@@ -109,6 +129,7 @@ void sle_uart_client_sample_connect_state_changed_cbk(uint16_t conn_id, const sl
         }
     } else if (conn_state == SLE_ACB_STATE_DISCONNECTED) {
         g_sle_uart_conn_id = 0xFFFF;
+        g_write_ready = false;
         sle_remove_paired_remote_device(&g_sle_uart_remote_addr);
         sle_uart_start_scan();
     }
@@ -123,9 +144,24 @@ void sle_uart_client_sample_pair_complete_cbk(uint16_t conn_id, const sle_addr_t
 }
 
 static void sle_uart_client_sample_exchange_info_cbk(uint8_t client_id, uint16_t conn_id, ssap_exchange_info_t *param, errcode_t status) {
+    unused(param);
     if (status == 0) {
-        ssapc_find_structure_param_t find_param = { .type = SSAP_FIND_TYPE_PRIMARY_SERVICE, .start_hdl = 1, .end_hdl = 0xFFFF };
+        ssapc_find_structure_param_t find_param = { .type = SSAP_FIND_TYPE_PROPERTY, .start_hdl = 1, .end_hdl = 0xFFFF };
         ssapc_find_structure(client_id, conn_id, &find_param);
+    }
+}
+
+static void sle_uart_client_sample_find_property_cbk(uint8_t client_id, uint16_t conn_id,
+    ssapc_find_property_result_t *property, errcode_t status)
+{
+    unused(client_id);
+    unused(conn_id);
+
+    if (status == ERRCODE_SUCC && property != NULL) {
+        g_sle_uart_write_param.handle = property->handle;
+        g_sle_uart_write_param.type = SSAP_PROPERTY_TYPE_VALUE;
+        g_write_ready = true;
+        osal_printk("[Node6 Client] Upstream write ready. handle:%u\r\n", property->handle);
     }
 }
 
@@ -141,6 +177,7 @@ void sle_uart_client_init(ssapc_notification_callback notification_cb, ssapc_ind
     sle_connection_register_callbacks(&g_sle_uart_connect_cbk);
 
     g_sle_uart_ssapc_cbk.exchange_info_cb = sle_uart_client_sample_exchange_info_cbk;
+    g_sle_uart_ssapc_cbk.ssapc_find_property_cbk = sle_uart_client_sample_find_property_cbk;
     g_sle_uart_ssapc_cbk.notification_cb = notification_cb;
     g_sle_uart_ssapc_cbk.indication_cb = indication_cb;
     ssapc_register_callbacks(&g_sle_uart_ssapc_cbk);

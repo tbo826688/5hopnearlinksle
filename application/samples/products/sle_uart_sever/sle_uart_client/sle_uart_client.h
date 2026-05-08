@@ -19,6 +19,8 @@ void sle_uart_start_scan(void);
 
 uint16_t get_g_sle_uart_conn_id(void);
 bool sle_uart_client_is_connected(void);
+bool sle_uart_client_can_write_upstream(void);
+errcode_t sle_uart_client_write_upstream_cmd(const uint8_t *data, uint16_t len);
 bool sle_uart_client_is_upstream_link(uint16_t conn_id, const sle_addr_t *addr);
 bool sle_uart_client_is_upstream_connect_pending(void);
 void sle_uart_client_watchdog_tick(void);

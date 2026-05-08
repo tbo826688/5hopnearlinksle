@@ -11,17 +11,9 @@
 #include "sle_device_discovery.h"
 #include "sle_connection_manager.h"
 #include "sle_uart_client.h"
+#include "sle_router_config.h"
 #include "tcxo.h"
 #include <string.h>
-
-/*
- * Configure per router before burning:
- * R1 -> "SLE_SVR"
- * R2 -> "SLE_R1"
- * R3 -> "SLE_R2"
- * R4 -> "SLE_R3"
- */
-#define TARGET_UPSTREAM_NAME "SLE_SVR"
 
 #define SLE_INVALID_CONN_ID             0xFFFF
 #define SLE_UPSTREAM_CLIENT_ID          1
@@ -34,8 +26,10 @@ static bool g_remote_addr_valid = false;
 static bool g_scan_active = false;
 static bool g_connect_pending = false;
 static bool g_restart_scan_after_stop = false;
+static bool g_write_ready = false;
 static uint64_t g_scan_started_us = 0;
 static uint64_t g_connect_started_us = 0;
+static ssapc_write_param_t g_sle_uart_write_param = { 0 };
 
 static uint16_t g_sle_uart_conn_id = SLE_INVALID_CONN_ID;
 
@@ -57,6 +51,22 @@ uint16_t get_g_sle_uart_conn_id(void)
 bool sle_uart_client_is_connected(void)
 {
     return g_sle_uart_conn_id != SLE_INVALID_CONN_ID;
+}
+
+bool sle_uart_client_can_write_upstream(void)
+{
+    return g_sle_uart_conn_id != SLE_INVALID_CONN_ID && g_write_ready;
+}
+
+errcode_t sle_uart_client_write_upstream_cmd(const uint8_t *data, uint16_t len)
+{
+    if (data == NULL || len == 0 || !sle_uart_client_can_write_upstream()) {
+        return ERRCODE_FAIL;
+    }
+
+    g_sle_uart_write_param.data = (uint8_t *)data;
+    g_sle_uart_write_param.data_len = len;
+    return ssapc_write_cmd(SLE_UPSTREAM_CLIENT_ID, g_sle_uart_conn_id, &g_sle_uart_write_param);
 }
 
 bool sle_uart_client_is_upstream_connect_pending(void)
@@ -82,6 +92,7 @@ void sle_uart_client_clear_upstream(void)
     g_sle_uart_conn_id = SLE_INVALID_CONN_ID;
     g_connect_pending = false;
     g_remote_addr_valid = false;
+    g_write_ready = false;
 }
 
 void sle_client_set_nv(void)
@@ -179,6 +190,7 @@ void sle_uart_start_scan(void)
 
 void sle_uart_client_enable_cbk(void)
 {
+    osal_printk("[Router Config] TARGET_UPSTREAM_NAME:%s\r\n", TARGET_UPSTREAM_NAME);
     sle_client_set_nv();
     sle_speed_connect_param_init();
     sle_uart_start_scan();
@@ -224,6 +236,7 @@ void sle_uart_client_sample_connect_state_changed_cbk(uint16_t conn_id, const sl
         g_sle_uart_conn_id = conn_id;
         g_connect_pending = false;
         g_scan_active = false;
+        g_write_ready = false;
         if (addr != NULL) {
             memcpy_s(&g_sle_uart_remote_addr, sizeof(sle_addr_t), addr, sizeof(sle_addr_t));
             g_remote_addr_valid = true;
@@ -266,11 +279,25 @@ static void sle_uart_client_sample_exchange_info_cbk(uint8_t client_id, uint16_t
 
     if (status == ERRCODE_SUCC) {
         ssapc_find_structure_param_t find_param = {
-            .type = SSAP_FIND_TYPE_PRIMARY_SERVICE,
+            .type = SSAP_FIND_TYPE_PROPERTY,
             .start_hdl = 1,
             .end_hdl = 0xFFFF
         };
         ssapc_find_structure(client_id, conn_id, &find_param);
+    }
+}
+
+static void sle_uart_client_sample_find_property_cbk(uint8_t client_id, uint16_t conn_id,
+    ssapc_find_property_result_t *property, errcode_t status)
+{
+    unused(client_id);
+    unused(conn_id);
+
+    if (status == ERRCODE_SUCC && property != NULL) {
+        g_sle_uart_write_param.handle = property->handle;
+        g_sle_uart_write_param.type = SSAP_PROPERTY_TYPE_VALUE;
+        g_write_ready = true;
+        osal_printk("[Router Client] Upstream write ready. handle:%u\r\n", property->handle);
     }
 }
 
@@ -313,6 +340,7 @@ void sle_uart_client_watchdog_tick(void)
 void sle_uart_client_init(ssapc_notification_callback notification_cb, ssapc_indication_callback indication_cb)
 {
     g_sle_uart_ssapc_cbk.exchange_info_cb = sle_uart_client_sample_exchange_info_cbk;
+    g_sle_uart_ssapc_cbk.ssapc_find_property_cbk = sle_uart_client_sample_find_property_cbk;
     g_sle_uart_ssapc_cbk.notification_cb = notification_cb;
     g_sle_uart_ssapc_cbk.indication_cb = indication_cb;
     ssapc_register_callbacks(&g_sle_uart_ssapc_cbk);

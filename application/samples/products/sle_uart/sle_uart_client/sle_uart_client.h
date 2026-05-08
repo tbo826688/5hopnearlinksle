@@ -4,6 +4,8 @@
 #ifndef SLE_UART_CLIENT_H
 #define SLE_UART_CLIENT_H
 
+#include <stdbool.h>
+#include <stdint.h>
 #include "sle_ssap_client.h"
 #include "sle_connection_manager.h"
 #include "sle_device_discovery.h"
@@ -20,6 +22,8 @@ uint8_t get_g_sle_uart_client_id(void);
 uint16_t get_g_sle_uart_conn_id(void); // 兼容旧接口
 
 ssapc_write_param_t *get_g_sle_uart_send_param(void);
+bool sle_uart_client_can_write_upstream(void);
+errcode_t sle_uart_client_write_upstream_cmd(const uint8_t *data, uint16_t len);
 
 // 声明回调函数，供 sle_uart_client.c 内部调用
 void sle_uart_notification_cb(uint8_t client_id, uint16_t conn_id, ssapc_handle_value_t *data, errcode_t status);

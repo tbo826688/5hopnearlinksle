@@ -23,6 +23,7 @@ static uint16_t g_sle_conn_hdl = SLE_INVALID_CONN_ID;
 static uint8_t g_server_id = 0;
 static uint16_t g_service_handle = 0;
 static uint16_t g_property_handle = 0;
+static sle_uart_link_profile_t g_link_profile = SLE_UART_LINK_PROFILE_STABLE;
 uint16_t g_sle_pair_hdl = 0;
 static uint8_t g_sle_uart_base[] = {
     0x37, 0xBE, 0xA8, 0x80, 0xFC, 0x70, 0x11, 0xEA,
@@ -32,6 +33,62 @@ static uint8_t g_sle_uart_base[] = {
 volatile bool g_mtu_negotiated = false;
 
 extern errcode_t sle_set_mcs(uint16_t conn_id, uint8_t mcs);
+
+static uint8_t sle_uart_server_profile_mcs(sle_uart_link_profile_t profile)
+{
+    switch (profile) {
+        case SLE_UART_LINK_PROFILE_LONG_RANGE:
+            return 6;
+        case SLE_UART_LINK_PROFILE_HIGH_SPEED:
+            return 10;
+        case SLE_UART_LINK_PROFILE_STABLE:
+        default:
+            return 8;
+    }
+}
+
+static sle_phy_tx_rx_pilot_density_t sle_uart_server_profile_pilot(sle_uart_link_profile_t profile)
+{
+    switch (profile) {
+        case SLE_UART_LINK_PROFILE_LONG_RANGE:
+            return SLE_PHY_PILOT_DENSITY_4_TO_1;
+        case SLE_UART_LINK_PROFILE_HIGH_SPEED:
+            return SLE_PHY_PILOT_DENSITY_16_TO_1;
+        case SLE_UART_LINK_PROFILE_STABLE:
+        default:
+            return SLE_PHY_PILOT_DENSITY_8_TO_1;
+    }
+}
+
+static const char *sle_uart_server_profile_name(sle_uart_link_profile_t profile)
+{
+    switch (profile) {
+        case SLE_UART_LINK_PROFILE_LONG_RANGE:
+            return "long";
+        case SLE_UART_LINK_PROFILE_HIGH_SPEED:
+            return "high";
+        case SLE_UART_LINK_PROFILE_STABLE:
+        default:
+            return "stable";
+    }
+}
+
+static void sle_uart_server_apply_link_profile(uint16_t conn_id)
+{
+    sle_phy_tx_rx_pilot_density_t pilot = sle_uart_server_profile_pilot(g_link_profile);
+    sle_set_phy_t phy_parm = {
+        .tx_format = SLE_RADIO_FRAME_2,
+        .rx_format = SLE_RADIO_FRAME_2,
+        .tx_phy = SLE_PHY_4M,
+        .rx_phy = SLE_PHY_4M,
+        .tx_pilot_density = pilot,
+        .rx_pilot_density = pilot,
+        .g_feedback = 0,
+        .t_feedback = 0,
+    };
+
+    sle_set_phy_param(conn_id, &phy_parm);
+}
 
 uint16_t get_connect_id(void)
 {
@@ -52,6 +109,26 @@ void sle_uart_server_clear_downstream(void)
 {
     g_sle_conn_hdl = SLE_INVALID_CONN_ID;
     g_mtu_negotiated = false;
+    g_link_profile = SLE_UART_LINK_PROFILE_STABLE;
+}
+
+void sle_uart_server_set_link_profile(sle_uart_link_profile_t profile)
+{
+    if (profile == g_link_profile) {
+        return;
+    }
+
+    g_link_profile = profile;
+    if (g_sle_conn_hdl != SLE_INVALID_CONN_ID) {
+        osal_printk("[Router Server] Switching downstream profile:%s\r\n",
+            sle_uart_server_profile_name(profile));
+        sle_uart_server_apply_link_profile(g_sle_conn_hdl);
+    }
+}
+
+sle_uart_link_profile_t sle_uart_server_get_link_profile(void)
+{
+    return g_link_profile;
 }
 
 static void encode2byte_little(uint8_t *ptr, uint16_t data)
@@ -91,17 +168,8 @@ static void ssaps_mtu_changed_cbk(uint8_t server_id, uint16_t conn_id,
     osal_printk("[Router Server] Downstream MTU OK:%u. Upgrading PHY.\r\n", mtu_size->mtu_size);
     sle_set_data_len(conn_id, 1500);
 
-    sle_set_phy_t phy_parm = {
-        .tx_format = SLE_RADIO_FRAME_2,
-        .rx_format = SLE_RADIO_FRAME_2,
-        .tx_phy = SLE_PHY_4M,
-        .rx_phy = SLE_PHY_4M,
-        .tx_pilot_density = SLE_PHY_PILOT_DENSITY_16_TO_1,
-        .rx_pilot_density = SLE_PHY_PILOT_DENSITY_16_TO_1,
-        .g_feedback = 0,
-        .t_feedback = 0,
-    };
-    sle_set_phy_param(conn_id, &phy_parm);
+    g_link_profile = SLE_UART_LINK_PROFILE_STABLE;
+    sle_uart_server_apply_link_profile(conn_id);
     g_mtu_negotiated = true;
 }
 
@@ -266,8 +334,10 @@ void sle_server_set_phy_cbk(uint16_t conn_id, errcode_t status, const sle_set_ph
     }
 
     if (status == ERRCODE_SUCC) {
-        sle_set_mcs(conn_id, 10);
-        osal_printk("[Router Server] Downstream PHY upgraded to MCS10.\r\n");
+        uint8_t mcs = sle_uart_server_profile_mcs(g_link_profile);
+        sle_set_mcs(conn_id, mcs);
+        osal_printk("[Router Server] Downstream profile:%s MCS%u.\r\n",
+            sle_uart_server_profile_name(g_link_profile), mcs);
     }
 }
 

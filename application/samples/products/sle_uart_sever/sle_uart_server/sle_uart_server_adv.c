@@ -14,6 +14,7 @@
 #include "osal_task.h"
 #include "string.h"
 #include "sle_uart_server_adv.h"
+#include "sle_router_config.h"
 
 #define NAME_MAX_LENGTH 16
 #define SLE_CONN_SUPERVISION_TIMEOUT_DEFAULT      0x1F4
@@ -25,15 +26,6 @@
 #define SLE_ADV_TX_POWER                          18
 #define SLE_ADV_HANDLE_DEFAULT                    1
 #define SLE_ADV_DATA_LEN_MAX                      251
-
-/*
- * Configure per router before burning:
- * R1 -> "SLE_R1"
- * R2 -> "SLE_R2"
- * R3 -> "SLE_R3"
- * R4 -> "SLE_END"
- */
-#define MY_ROUTER_NAME "SLE_R1"
 
 static uint8_t sle_local_name[NAME_MAX_LENGTH] = MY_ROUTER_NAME;
 static bool g_adv_started = false;
@@ -201,6 +193,12 @@ errcode_t sle_uart_server_adv_stop(void)
 errcode_t sle_uart_server_adv_init(void)
 {
     errcode_t ret;
+    static bool config_printed = false;
+
+    if (!config_printed) {
+        osal_printk("[Router Config] MY_ROUTER_NAME:%s\r\n", MY_ROUTER_NAME);
+        config_printed = true;
+    }
 
     sle_set_default_announce_param();
     sle_set_default_announce_data();
