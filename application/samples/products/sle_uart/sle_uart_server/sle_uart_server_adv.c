@@ -15,13 +15,13 @@
 #include "sle_uart_server_adv.h"
 
 #define NAME_MAX_LENGTH 16
-#define SLE_CONN_SUPERVISION_TIMEOUT_DEFAULT      0x1F4 
+#define SLE_CONN_SUPERVISION_TIMEOUT_DEFAULT      0x7D0
 #define SLE_CONN_INTV_MIN_DEFAULT                 0x14  // 2.5ms
 #define SLE_CONN_INTV_MAX_DEFAULT                 0x14  // 2.5ms
 #define SLE_ADV_INTERVAL_MIN_DEFAULT              0x20  
 #define SLE_ADV_INTERVAL_MAX_DEFAULT              0x20  
 #define SLE_CONN_MAX_LATENCY                      0
-#define SLE_ADV_TX_POWER  10
+#define SLE_ADV_TX_POWER  18
 #define SLE_ADV_HANDLE_DEFAULT                    1
 #define SLE_ADV_DATA_LEN_MAX                      251
 

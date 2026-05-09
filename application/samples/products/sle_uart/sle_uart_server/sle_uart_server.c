@@ -15,6 +15,8 @@
 #define UUID_LEN_2              2
 #define UART_BUFF_LENGTH        0x100
 #define SLE_ADV_HANDLE_DEFAULT  1
+#define SLE_ENDPOINT_SUPERVISION_TIMEOUT 0x7D0
+#define SLE_ENDPOINT_OUTDOOR_MCS         8
 
 static char g_sle_uuid_app_uuid[UUID_LEN_2] = { 0x12, 0x34 };
 static char g_sle_property_value[OCTET_BIT_LEN] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
@@ -127,11 +129,12 @@ void sle_connect_state_changed_cbk(uint16_t conn_id, const sle_addr_t *addr, sle
         g_sle_conn_hdl = conn_id;
         g_mtu_negotiated = false; 
         osal_printk("[Server] Client Linked! Pushing 2.5ms Interval...\r\n");
-        sle_connection_param_update_t parame = { .conn_id = conn_id, .interval_min = 0x14, .interval_max = 0x14, .max_latency = 0, .supervision_timeout = 0x1F4 };
+        sle_connection_param_update_t parame = { .conn_id = conn_id, .interval_min = 0x14, .interval_max = 0x14, .max_latency = 0, .supervision_timeout = SLE_ENDPOINT_SUPERVISION_TIMEOUT };
         sle_update_connect_param(&parame);  
     } else if (conn_state == SLE_ACB_STATE_DISCONNECTED) {
         g_sle_conn_hdl = 0xFFFF;
         g_mtu_negotiated = false;
+        osal_printk("[Server] Client disconnected. reason:%u\r\n", (uint8_t)disc_reason);
         sle_uart_server_adv_init();
     }
 }
@@ -142,8 +145,8 @@ void sle_pair_complete_cbk(uint16_t conn_id, const sle_addr_t *addr, errcode_t s
 void sle_server_set_phy_cbk(uint16_t conn_id, errcode_t status, const sle_set_phy_t *param) {
     unused(param);
     if (status == ERRCODE_SUCC) {
-        sle_set_mcs(conn_id, 8);
-        osal_printk("[Server] Stable PHY profile applied. MCS8.\r\n");
+        sle_set_mcs(conn_id, SLE_ENDPOINT_OUTDOOR_MCS);
+        osal_printk("[Server] Outdoor PHY profile applied. MCS%u.\r\n", SLE_ENDPOINT_OUTDOOR_MCS);
     }
 }
 

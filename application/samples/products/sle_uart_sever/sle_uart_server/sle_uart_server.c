@@ -12,10 +12,18 @@
 #include "sle_uart_server_adv.h"
 #include "sle_uart_server.h"
 #include "sle_low_latency.h"
+#include "sle_router_config.h"
 
 #define OCTET_BIT_LEN           8
 #define UUID_LEN_2              2
 #define SLE_INVALID_CONN_ID     0xFFFF
+#if SLE_OUTDOOR_LONG_RANGE
+#define SLE_ROUTER_DEFAULT_PROFILE       SLE_UART_LINK_PROFILE_STABLE
+#define SLE_ROUTER_SUPERVISION_TIMEOUT   SLE_OUTDOOR_SUPERVISION_TIMEOUT
+#else
+#define SLE_ROUTER_DEFAULT_PROFILE       SLE_UART_LINK_PROFILE_STABLE
+#define SLE_ROUTER_SUPERVISION_TIMEOUT   SLE_INDOOR_SUPERVISION_TIMEOUT
+#endif
 
 static char g_sle_uuid_app_uuid[UUID_LEN_2] = { 0x12, 0x34 };
 static char g_sle_property_value[OCTET_BIT_LEN] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
@@ -23,7 +31,7 @@ static uint16_t g_sle_conn_hdl = SLE_INVALID_CONN_ID;
 static uint8_t g_server_id = 0;
 static uint16_t g_service_handle = 0;
 static uint16_t g_property_handle = 0;
-static sle_uart_link_profile_t g_link_profile = SLE_UART_LINK_PROFILE_STABLE;
+static sle_uart_link_profile_t g_link_profile = SLE_ROUTER_DEFAULT_PROFILE;
 uint16_t g_sle_pair_hdl = 0;
 static uint8_t g_sle_uart_base[] = {
     0x37, 0xBE, 0xA8, 0x80, 0xFC, 0x70, 0x11, 0xEA,
@@ -56,7 +64,11 @@ static sle_phy_tx_rx_pilot_density_t sle_uart_server_profile_pilot(sle_uart_link
             return SLE_PHY_PILOT_DENSITY_16_TO_1;
         case SLE_UART_LINK_PROFILE_STABLE:
         default:
+#if SLE_OUTDOOR_LONG_RANGE
+            return SLE_PHY_PILOT_DENSITY_4_TO_1;
+#else
             return SLE_PHY_PILOT_DENSITY_8_TO_1;
+#endif
     }
 }
 
@@ -109,7 +121,7 @@ void sle_uart_server_clear_downstream(void)
 {
     g_sle_conn_hdl = SLE_INVALID_CONN_ID;
     g_mtu_negotiated = false;
-    g_link_profile = SLE_UART_LINK_PROFILE_STABLE;
+    g_link_profile = SLE_ROUTER_DEFAULT_PROFILE;
 }
 
 void sle_uart_server_set_link_profile(sle_uart_link_profile_t profile)
@@ -165,10 +177,11 @@ static void ssaps_mtu_changed_cbk(uint8_t server_id, uint16_t conn_id,
         return;
     }
 
-    osal_printk("[Router Server] Downstream MTU OK:%u. Upgrading PHY.\r\n", mtu_size->mtu_size);
+    osal_printk("[Router Server] Downstream MTU OK:%u. Applying %s PHY.\r\n",
+        mtu_size->mtu_size, sle_uart_server_profile_name(SLE_ROUTER_DEFAULT_PROFILE));
     sle_set_data_len(conn_id, 1500);
 
-    g_link_profile = SLE_UART_LINK_PROFILE_STABLE;
+    g_link_profile = SLE_ROUTER_DEFAULT_PROFILE;
     sle_uart_server_apply_link_profile(conn_id);
     g_mtu_negotiated = true;
 }
@@ -293,7 +306,6 @@ void sle_connect_state_changed_cbk(uint16_t conn_id, const sle_addr_t *addr,
 {
     unused(addr);
     unused(pair_state);
-    unused(disc_reason);
 
     if (conn_state == SLE_ACB_STATE_CONNECTED) {
         g_sle_conn_hdl = conn_id;
@@ -306,13 +318,14 @@ void sle_connect_state_changed_cbk(uint16_t conn_id, const sle_addr_t *addr,
             .interval_min = 0x14,
             .interval_max = 0x14,
             .max_latency = 0,
-            .supervision_timeout = 0x1F4
+            .supervision_timeout = SLE_ROUTER_SUPERVISION_TIMEOUT
         };
         sle_update_connect_param(&param);
     } else if (conn_state == SLE_ACB_STATE_DISCONNECTED) {
         if (conn_id == g_sle_conn_hdl || g_sle_conn_hdl == SLE_INVALID_CONN_ID) {
             sle_uart_server_clear_downstream();
-            osal_printk("[Router Server] Downstream disconnected. Restarting advertise.\r\n");
+            osal_printk("[Router Server] Downstream disconnected. reason:%u Restarting advertise.\r\n",
+                (uint8_t)disc_reason);
             sle_uart_server_adv_init();
         }
     }

@@ -325,7 +325,11 @@ static void sle_uart_router_print_stats(void)
         last_clean_us = now;
         sle_uart_server_set_link_profile(SLE_UART_LINK_PROFILE_LONG_RANGE);
     } else if (now - last_clean_us >= ROUTER_STABLE_PROMOTE_US) {
+#if SLE_OUTDOOR_LONG_RANGE
+        sle_uart_server_set_link_profile(SLE_UART_LINK_PROFILE_STABLE);
+#else
         sle_uart_server_set_link_profile(SLE_UART_LINK_PROFILE_HIGH_SPEED);
+#endif
         last_clean_us = now;
     }
 

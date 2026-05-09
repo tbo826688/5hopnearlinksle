@@ -24,7 +24,7 @@
 #define SLE_UART_TASK_PRIO                  27
 #define SLE_UART_TASK_STACK_SIZE            0x2000
 #define THROUGHPUT_PKT_LEN                  1200
-#define THROUGHPUT_PACING_MS                10
+#define THROUGHPUT_PACING_MS                8
 #define SPEED_SAMPLE_INTERVAL_MS            1000
 #define SOURCE_STATS_INTERVAL_MS            5000
 #define US_PER_SECOND                       1000000ULL
@@ -47,8 +47,11 @@
 #define BUSINESS_RX_WINDOW                  64
 #define BUSINESS_RETX_TIMEOUT_MS            1000
 #define BUSINESS_ACK_BATCH_PACKETS          4
-#define BUSINESS_ACK_MAX_INTERVAL_MS        40
+#define BUSINESS_ACK_MAX_INTERVAL_MS        25
+#define BUSINESS_STREAM_MODE                1
+#define BUSINESS_STATUS_ACK_INTERVAL_MS     200
 #define BUSINESS_SEQ_RESET_THRESHOLD        64
+#define SLE_ENDPOINT_OUTDOOR_PILOT          SLE_PHY_PILOT_DENSITY_4_TO_1
 
 extern uint8_t gle_tx_acb_data_num_get(void);
 extern volatile bool g_mtu_negotiated;
@@ -165,8 +168,8 @@ static void sle_source_upgrade_link(uint16_t conn_id)
         .rx_format = SLE_RADIO_FRAME_2,
         .tx_phy = SLE_PHY_4M,
         .rx_phy = SLE_PHY_4M,
-        .tx_pilot_density = SLE_PHY_PILOT_DENSITY_8_TO_1,
-        .rx_pilot_density = SLE_PHY_PILOT_DENSITY_8_TO_1,
+        .tx_pilot_density = SLE_ENDPOINT_OUTDOOR_PILOT,
+        .rx_pilot_density = SLE_ENDPOINT_OUTDOOR_PILOT,
         .g_feedback = 0,
         .t_feedback = 0,
     };
@@ -298,10 +301,37 @@ static bool source_select_new(uint8_t *out, uint16_t *len, uint64_t now_us)
     return true;
 }
 
+static bool source_select_stream_new(uint8_t *out, uint16_t *len)
+{
+    uint16_t seq;
+    uint32_t irq_status;
+
+    if (out == NULL || len == NULL) {
+        return false;
+    }
+
+    irq_status = osal_irq_lock();
+    seq = g_source_next_seq++;
+    osal_irq_restore(irq_status);
+
+    memset(&out[BUSINESS_HEADER_LEN], (int)(seq & 0xFF), BUSINESS_PAYLOAD_LEN);
+    business_fill_header(out, BUSINESS_TYPE_DATA, 0, seq, BUSINESS_PAYLOAD_LEN);
+    *len = THROUGHPUT_PKT_LEN;
+    return true;
+}
+
 static void source_handle_ack(uint16_t ack_seq, uint64_t sack_bitmap)
 {
     uint64_t now_us = uapi_tcxo_get_us();
     uint32_t irq_status = osal_irq_lock();
+#if BUSINESS_STREAM_MODE
+    unused(ack_seq);
+    unused(sack_bitmap);
+    g_source_ack++;
+    g_source_last_cum_ack_us = now_us;
+    osal_irq_restore(irq_status);
+    return;
+#else
     uint16_t newest_seq = (uint16_t)(g_source_next_seq - 1);
     uint16_t lower_bound = (uint16_t)(g_source_oldest_seq - 1);
     bool ack_progress = false;
@@ -351,6 +381,7 @@ static void source_handle_ack(uint16_t ack_seq, uint64_t sack_bitmap)
     }
 
     osal_irq_restore(irq_status);
+#endif
 }
 
 static void ssaps_server_write_request_cbk(uint8_t server_id, uint16_t conn_id,
@@ -385,8 +416,8 @@ static void sle_throughput_tx_task(void)
     uint32_t last_tx_fail = 0;
     uint64_t last_stats_us = 0;
 
-    osal_printk("[Business TX] Node1 ready. pkt:%u payload:%u pacing:%ums window:%u\r\n",
-        THROUGHPUT_PKT_LEN, BUSINESS_PAYLOAD_LEN, THROUGHPUT_PACING_MS, BUSINESS_TX_WINDOW);
+    osal_printk("[Business TX] Node1 ready. pkt:%u payload:%u pacing:%ums window:%u stream:%u\r\n",
+        THROUGHPUT_PKT_LEN, BUSINESS_PAYLOAD_LEN, THROUGHPUT_PACING_MS, BUSINESS_TX_WINDOW, BUSINESS_STREAM_MODE);
 
     while (1) {
         while (!sle_uart_client_is_connected()) {
@@ -406,7 +437,7 @@ static void sle_throughput_tx_task(void)
         osal_msleep(500);
         source_reset_window();
         sle_source_upgrade_link(conn_id);
-        osal_printk("[Business TX] 5-hop reliable traffic started.\r\n");
+        osal_printk("[Business TX] 5-hop stream traffic started.\r\n");
         last_stats_us = uapi_tcxo_get_us();
 
         while (sle_uart_client_is_connected() && g_mtu_negotiated) {
@@ -437,11 +468,16 @@ static void sle_throughput_tx_task(void)
             }
 
             if (gle_tx_acb_data_num_get() > 0) {
+#if BUSINESS_STREAM_MODE
+                has_packet = source_select_stream_new(g_source_tx_buf, &tx_len);
+                selected_retx = false;
+#else
                 has_packet = source_select_retx(g_source_tx_buf, &tx_len, now_us);
                 selected_retx = has_packet;
                 if (!has_packet) {
                     has_packet = source_select_new(g_source_tx_buf, &tx_len, now_us);
                 }
+#endif
                 if (!has_packet) {
                     osal_msleep(1);
                     continue;
@@ -537,6 +573,21 @@ static void node6_send_ack(uint16_t ack_seq, uint64_t sack_bitmap)
 static void node6_maybe_send_ack(uint16_t ack_seq, uint64_t sack_bitmap)
 {
     uint64_t now_us = uapi_tcxo_get_us();
+#if BUSINESS_STREAM_MODE
+    bool timer_ready = !g_last_ack_valid ||
+        now_us - g_last_ack_us >= (BUSINESS_STATUS_ACK_INTERVAL_MS * 1000ULL);
+
+    unused(sack_bitmap);
+    if (timer_ready) {
+        g_last_ack_seq = ack_seq;
+        g_last_ack_sack_bitmap = 0;
+        g_last_ack_us = now_us;
+        g_last_ack_valid = true;
+        node6_send_ack(ack_seq, 0);
+    } else {
+        g_ack_suppressed_packets++;
+    }
+#else
     int16_t ack_advance = g_last_ack_valid ? business_seq_diff(ack_seq, g_last_ack_seq) :
         BUSINESS_ACK_BATCH_PACKETS;
     bool force_ack = !g_last_ack_valid || sack_bitmap != g_last_ack_sack_bitmap;
@@ -552,6 +603,7 @@ static void node6_maybe_send_ack(uint16_t ack_seq, uint64_t sack_bitmap)
     } else {
         g_ack_suppressed_packets++;
     }
+#endif
 }
 
 static void node6_reset_sequence(uint16_t seq)
@@ -665,6 +717,23 @@ static void sle_uart_rx_stats_add(ssapc_handle_value_t *data)
     }
 
     seq_delta = business_seq_diff(seq, g_expected_seq);
+#if BUSINESS_STREAM_MODE
+    if (seq_delta == 0) {
+        node6_deliver_packet(payload_len, false);
+        g_expected_seq++;
+    } else if (seq_delta < 0) {
+        g_dup_packets++;
+    } else {
+        g_gap_seen_packets += (uint16_t)seq_delta;
+        node6_deliver_packet(payload_len, false);
+        g_expected_seq = (uint16_t)(seq + 1);
+    }
+
+    ack_seq = (uint16_t)(g_expected_seq - 1);
+    osal_irq_restore(irq_status);
+    node6_maybe_send_ack(ack_seq, 0);
+    return;
+#else
     if (seq_delta == 0) {
         if (g_gap_active && seq == g_gap_seq) {
             node6_deliver_packet(payload_len, true);
@@ -694,6 +763,7 @@ static void sle_uart_rx_stats_add(ssapc_handle_value_t *data)
     sack_bitmap = node6_build_sack_bitmap();
     osal_irq_restore(irq_status);
     node6_maybe_send_ack(ack_seq, sack_bitmap);
+#endif
 }
 
 static void sle_uart_rx_stats_take(sle_uart_rx_stats_t *stats)
@@ -750,7 +820,7 @@ static void *sle_uart_client_task(const char *arg)
     uint64_t last_time_us;
 
     sle_uart_client_init(sle_uart_notification_cb, sle_uart_indication_cb);
-    osal_printk("[Business RX] Node6 sink ready. Awaiting reliable 5-hop data.\r\n");
+    osal_printk("[Business RX] Node6 sink ready. Awaiting 5-hop stream data.\r\n");
     last_time_us = uapi_tcxo_get_us();
 
     while (1) {

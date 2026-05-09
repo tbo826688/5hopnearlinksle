@@ -15,12 +15,17 @@
 #ifndef SLE_UART_SERVER_NAME
 #define SLE_UART_SERVER_NAME           "SLE_END"
 #endif
+#define SLE_ENDPOINT_CONNECT_SCAN_INTERVAL       100
+#define SLE_ENDPOINT_CONNECT_SCAN_WINDOW         100
+#define SLE_ENDPOINT_SUPERVISION_TIMEOUT         0x7D0
 
 static sle_announce_seek_callbacks_t g_sle_uart_seek_cbk = { 0 };
 static sle_connection_callbacks_t g_sle_uart_connect_cbk = { 0 };
 static ssapc_callbacks_t g_sle_uart_ssapc_cbk = { 0 };
 static sle_addr_t g_sle_uart_remote_addr = { 0 };
 static bool g_remote_addr_valid = false; 
+static bool g_scan_active = false;
+static bool g_connect_pending = false;
 static bool g_write_ready = false;
 static ssapc_write_param_t g_sle_uart_write_param = { 0 };
 uint16_t g_sle_uart_conn_id = 0xFFFF;
@@ -80,26 +85,59 @@ void sle_speed_connect_param_init(void) {
     param.initiate_phys = 1;
     param.max_interval = 0x14; 
     param.min_interval = 0x14; 
-    param.scan_interval = 400;
-    param.scan_window = 20;
-    param.timeout = 0x1f4;      
+    param.scan_interval = SLE_ENDPOINT_CONNECT_SCAN_INTERVAL;
+    param.scan_window = SLE_ENDPOINT_CONNECT_SCAN_WINDOW;
+    param.timeout = SLE_ENDPOINT_SUPERVISION_TIMEOUT;
     sle_default_connection_param_set(&param);
 }
 
+static void sle_uart_client_connect_found_target(errcode_t stop_status)
+{
+    errcode_t ret;
+
+    if (!g_remote_addr_valid || g_sle_uart_conn_id != 0xFFFF || g_connect_pending) {
+        return;
+    }
+
+    sle_remove_paired_remote_device(&g_sle_uart_remote_addr);
+    ret = sle_connect_remote_device(&g_sle_uart_remote_addr);
+    if (ret == ERRCODE_SUCC) {
+        g_connect_pending = true;
+        osal_printk("[Node6 Client] Connecting target:%s stop_status:%u\r\n",
+            SLE_UART_SERVER_NAME, (uint32_t)stop_status);
+    } else {
+        osal_printk("[Node6 Client] Connect start failed:%u target:%s stop_status:%u\r\n",
+            (uint32_t)ret, SLE_UART_SERVER_NAME, (uint32_t)stop_status);
+        g_connect_pending = false;
+        g_remote_addr_valid = false;
+        sle_uart_start_scan();
+    }
+}
+
 void sle_uart_client_sample_seek_result_info_cbk(sle_seek_result_info_t *seek_result_data) {
+    errcode_t ret;
+
     if (seek_result_data == NULL) return;
+    if (g_sle_uart_conn_id != 0xFFFF || g_connect_pending) return;
     if (sle_adv_data_contains_name(seek_result_data)) {
         memcpy_s(&g_sle_uart_remote_addr, sizeof(sle_addr_t), &seek_result_data->addr, sizeof(sle_addr_t));
         g_remote_addr_valid = true;
-        sle_stop_seek();
+        osal_printk("[Node6 Client] Found target:%s. Stop scan to connect.\r\n", SLE_UART_SERVER_NAME);
+        ret = sle_stop_seek();
+        if (ret != ERRCODE_SUCC) {
+            g_scan_active = false;
+            sle_uart_client_connect_found_target(ret);
+        }
     }
 }
 
 void sle_uart_start_scan(void) {
-    if (g_sle_uart_conn_id != 0xFFFF) return; 
+    if (g_sle_uart_conn_id != 0xFFFF || g_connect_pending || g_scan_active) return; 
     sle_seek_param_t param = { .own_addr_type = 0, .seek_phys = 1, .seek_type = {1}, .seek_interval = {100}, .seek_window = {100} };
     sle_set_seek_param(&param);
-    sle_start_seek();
+    if (sle_start_seek() == ERRCODE_SUCC) {
+        g_scan_active = true;
+    }
 }
 
 void sle_uart_client_sample_sle_enable_cbk(errcode_t status) {
@@ -109,11 +147,16 @@ void sle_uart_client_sample_sle_enable_cbk(errcode_t status) {
         sle_uart_start_scan();
     }
 }
-void sle_uart_client_sample_seek_enable_cbk(errcode_t status) { (void)status; }
+void sle_uart_client_sample_seek_enable_cbk(errcode_t status)
+{
+    if (status == ERRCODE_SUCC) {
+        g_scan_active = true;
+    }
+}
 void sle_uart_client_sample_seek_disable_cbk(errcode_t status) {
-    if (status == 0 && g_remote_addr_valid) {
-        sle_remove_paired_remote_device(&g_sle_uart_remote_addr);
-        if (sle_connect_remote_device(&g_sle_uart_remote_addr) != 0) sle_uart_start_scan();
+    g_scan_active = false;
+    if (g_remote_addr_valid && g_sle_uart_conn_id == 0xFFFF && !g_connect_pending) {
+        sle_uart_client_connect_found_target(status);
     }
 }
 
@@ -121,6 +164,8 @@ void sle_uart_client_sample_connect_state_changed_cbk(uint16_t conn_id, const sl
     unused(pair_state);
     if (conn_state == SLE_ACB_STATE_CONNECTED) {
         g_sle_uart_conn_id = conn_id;
+        g_connect_pending = false;
+        g_scan_active = false;
         g_write_ready = false;
         if (pair_state == SLE_PAIR_NONE) sle_pair_remote_device(&g_sle_uart_remote_addr);
         else {
@@ -129,7 +174,10 @@ void sle_uart_client_sample_connect_state_changed_cbk(uint16_t conn_id, const sl
         }
     } else if (conn_state == SLE_ACB_STATE_DISCONNECTED) {
         g_sle_uart_conn_id = 0xFFFF;
+        g_connect_pending = false;
+        g_scan_active = false;
         g_write_ready = false;
+        osal_printk("[Node6 Client] Upstream disconnected. reason:%u\r\n", (uint8_t)disc_reason);
         sle_remove_paired_remote_device(&g_sle_uart_remote_addr);
         sle_uart_start_scan();
     }
