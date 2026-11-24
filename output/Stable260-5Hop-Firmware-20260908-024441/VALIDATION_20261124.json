@@ -1,0 +1,86 @@
+{
+  "hardware_tested": false,
+  "roles": [
+    {
+      "role": "R1",
+      "file": "02_R1_SLE_Route_ID1_Stable260.fwpkg",
+      "build_exit_code": 0,
+      "seconds": 66.8,
+      "bytes": 1434344,
+      "sha256": "CC60CDEE0C302746E0C7A6ABBEA162E9D810A65F3672CB4A2FE7B16A412528CD",
+      "matches_historical_package": true,
+      "configuration_matches": true,
+      "display_compiled": false
+    },
+    {
+      "role": "R2",
+      "file": "03_R2_SLE_Route_ID2_Stable260.fwpkg",
+      "build_exit_code": 0,
+      "seconds": 67.8,
+      "bytes": 1434344,
+      "sha256": "E3E79917992A677A895EC66833CBFD04F1E6F53A869B0FFC906A673E6E789841",
+      "matches_historical_package": true,
+      "configuration_matches": true,
+      "display_compiled": false
+    },
+    {
+      "role": "R3",
+      "file": "04_R3_SLE_Route_ID3_Stable260.fwpkg",
+      "build_exit_code": 0,
+      "seconds": 60.2,
+      "bytes": 1434344,
+      "sha256": "5BC2E4DB10BF7BD5B4BD7B3C841C99D6339662D6E6FA453BE4B6BE0B11524E08",
+      "matches_historical_package": true,
+      "configuration_matches": true,
+      "display_compiled": false
+    },
+    {
+      "role": "R4",
+      "file": "05_R4_SLE_Route_ID4_Stable260.fwpkg",
+      "build_exit_code": 0,
+      "seconds": 61.5,
+      "bytes": 1434344,
+      "sha256": "4962490B95F272812FF005D9C1C00CF18975C4D0762B9A63A716A541914A2EA5",
+      "matches_historical_package": true,
+      "configuration_matches": true,
+      "display_compiled": false
+    },
+    {
+      "role": "Node6",
+      "file": "06_Node6_SLE_Client_Stable260.fwpkg",
+      "build_exit_code": 0,
+      "seconds": 62.0,
+      "bytes": 1428648,
+      "sha256": "C2C915D073EED881EE72F94D68EA0730C77ADE0EABBC46B2011F9998CC278EBD",
+      "matches_historical_package": true,
+      "configuration_matches": true,
+      "display_compiled": false
+    },
+    {
+      "role": "Node1",
+      "file": "01_Node1_SLE_Server_Stable260.fwpkg",
+      "build_exit_code": 0,
+      "seconds": 59.0,
+      "bytes": 1432168,
+      "sha256": "07A70C71C392689CA4BA7C9B3E37B88D20FDD099E5F8163FEE180A761EBCF78D",
+      "matches_historical_package": true,
+      "configuration_matches": true,
+      "display_compiled": false
+    }
+  ],
+  "config_source": "2026-09-08 saved per-role mconfig.h",
+  "active_role": "Node1",
+  "verification_date": "2026-11-24",
+  "scope": "single-board five-hop, R2 display removed, current default Node1",
+  "host_unit_tests": {
+    "date": "2026-11-24",
+    "environment": "Windows Python 3.11",
+    "working_directory": "application/tools/sle_transfer_gui",
+    "command": "python -m unittest discover -v",
+    "tests": 30,
+    "exit_code": 0,
+    "passed": true,
+    "linux_runtime_tested": false,
+    "hardware_tested": false
+  }
+}

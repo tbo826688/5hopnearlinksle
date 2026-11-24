@@ -313,7 +313,7 @@
             "key_status": "alive",
             "structure_type": "btc_power_type_t",
             "attributions": 1,
-            "value": [3]
+            "value": [7]
         },
         "radar_alg_param0":{
             "key_id": "0x2100",

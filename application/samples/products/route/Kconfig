@@ -1,0 +1,42 @@
+#===============================================================================
+# @brief    Kconfig file for SLE Route
+#===============================================================================
+
+choice
+    prompt "Select SLE route role"
+    default SAMPLE_SUPPORT_ROUTE_ALL
+
+    config SAMPLE_SUPPORT_ROUTE_SERVER
+        bool "Enable SLE route Server role."
+
+    config SAMPLE_SUPPORT_ROUTE_CLIENT
+        bool "Enable SLE route Client role."
+
+    config SAMPLE_SUPPORT_ROUTE_ALL
+        bool "Enable SLE Server & Client (single-board R1-R4)."
+endchoice
+
+config ROUTE_NODE_ID
+    int "Logical router id (R1=1, R2=2, R3=3, R4=4)"
+    range 1 4
+    default 1
+    depends on SAMPLE_SUPPORT_ROUTE_ALL
+    help
+        Select the identity of this single-board router image. The value also
+        determines the upstream name to scan and the downstream name to
+        advertise, so each of R1, R2, R3 and R4 must be built separately.
+
+config ROUTE_OUTDOOR_LONG_RANGE
+    bool "Use outdoor long-range supervision timeout"
+    default y
+    help
+        Keep the connection alive across short outdoor fades. Disable only for
+        indoor debugging that requires quicker disconnect detection.
+
+config SUPPORT_SLE_PERIPHERAL
+    bool
+    default y if (SAMPLE_SUPPORT_ROUTE_SERVER || SAMPLE_SUPPORT_ROUTE_ALL)
+
+config SUPPORT_SLE_CENTRAL
+    bool
+    default y if (SAMPLE_SUPPORT_ROUTE_CLIENT || SAMPLE_SUPPORT_ROUTE_ALL)

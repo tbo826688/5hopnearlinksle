@@ -34,6 +34,17 @@ choice
         bool "Enable SLE UART Server & Client sample."
 endchoice
 
+config SAMPLE_FILE_TRANSFER_MODE
+    bool "Enable end-to-end file transfer mode (UART<->SLE 5-hop)"
+    depends on SAMPLE_SUPPORT_SLE_UART
+    default n
+    help
+        When enabled, Node 1 reads bytes from CONFIG_SLE_UART_BUS and forwards
+        them with a 12-byte header (magic+seq+CRC16) over the 5-hop link;
+        Node 6 verifies CRC and writes verified payloads back to its UART.
+        UART runs at 921600 baud. When disabled, the legacy 1400-byte
+        synthetic throughput stream is used.
+
 config SUPPORT_SLE_PERIPHERAL
     bool
     # 【修改】Server 或 All 模式支持 Peripheral

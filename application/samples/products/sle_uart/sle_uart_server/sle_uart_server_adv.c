@@ -15,23 +15,37 @@
 #include "sle_uart_server_adv.h"
 
 #define NAME_MAX_LENGTH 16
-#define SLE_CONN_SUPERVISION_TIMEOUT_DEFAULT      0x1F4 
+#ifndef SLE_OUTDOOR_LONG_RANGE
+#define SLE_OUTDOOR_LONG_RANGE 1
+#endif
+#if SLE_OUTDOOR_LONG_RANGE
+#define SLE_CONN_SUPERVISION_TIMEOUT_DEFAULT      0x7D0
+#else
+#define SLE_CONN_SUPERVISION_TIMEOUT_DEFAULT      0x1F4
+#endif
 #define SLE_CONN_INTV_MIN_DEFAULT                 0x14  // 2.5ms
 #define SLE_CONN_INTV_MAX_DEFAULT                 0x14  // 2.5ms
 #define SLE_ADV_INTERVAL_MIN_DEFAULT              0x20  
 #define SLE_ADV_INTERVAL_MAX_DEFAULT              0x20  
 #define SLE_CONN_MAX_LATENCY                      0
-#define SLE_ADV_TX_POWER  10
+#define SLE_ADV_TX_POWER  20
 #define SLE_ADV_HANDLE_DEFAULT                    1
 #define SLE_ADV_DATA_LEN_MAX                      251
 
-static uint8_t sle_local_name[NAME_MAX_LENGTH] ="SLE_SVR";;
+static uint8_t sle_local_name[NAME_MAX_LENGTH] = "SLE_SVR";
+static bool g_adv_started = false;
+static volatile bool g_sle_stack_enabled = false;
+
+bool sle_uart_server_stack_is_enabled(void)
+{
+    return g_sle_stack_enabled;
+}
 
 static uint16_t sle_set_adv_local_name(uint8_t *adv_data, uint16_t max_len) {
     errno_t ret;
     uint8_t index = 0;
     uint8_t *local_name = sle_local_name;
-    uint8_t local_name_len = sizeof(sle_local_name) - 1;
+    uint8_t local_name_len = (uint8_t)strlen((const char *)sle_local_name);
     adv_data[index++] = local_name_len + 1;
     adv_data[index++] = SLE_ADV_DATA_TYPE_COMPLETE_LOCAL_NAME;
     ret = memcpy_s(&adv_data[index], max_len - index, local_name, local_name_len);
@@ -75,7 +89,7 @@ static int sle_set_default_announce_param(void) {
     param.conn_interval_max = SLE_CONN_INTV_MAX_DEFAULT;
     param.conn_max_latency = SLE_CONN_MAX_LATENCY;
     param.conn_supervision_timeout = SLE_CONN_SUPERVISION_TIMEOUT_DEFAULT;
-    param.announce_tx_power = 18;
+    param.announce_tx_power = SLE_ADV_TX_POWER;
     sle_addr_t local_addr_struct = {0};
     if (sle_get_local_addr(&local_addr_struct) == ERRCODE_SLE_SUCCESS) {
         param.own_addr.type = local_addr_struct.type;
@@ -98,13 +112,35 @@ static int sle_set_default_announce_data(void) {
 // 🚀 【核心修复】引入 Server 主逻辑暴露的回调
 extern void sle_uart_server_enable_cbk(void); 
 
-void sle_announce_enable_cbk(uint32_t announce_id, errcode_t status) {}
-void sle_announce_disable_cbk(uint32_t announce_id, errcode_t status) {}
-void sle_announce_terminal_cbk(uint32_t announce_id) {}
+void sle_announce_enable_cbk(uint32_t announce_id, errcode_t status)
+{
+    (void)announce_id;
+    g_adv_started = (status == ERRCODE_SUCC);
+}
+
+void sle_announce_disable_cbk(uint32_t announce_id, errcode_t status)
+{
+    (void)announce_id;
+    if (status == ERRCODE_SUCC) {
+        g_adv_started = false;
+    }
+}
+
+void sle_announce_terminal_cbk(uint32_t announce_id)
+{
+    (void)announce_id;
+    g_adv_started = false;
+}
+
+void sle_uart_server_adv_mark_stopped(void)
+{
+    g_adv_started = false;
+}
 
 void sle_enable_cbk(errcode_t status) {
     if (status == 0) {
         sle_uart_server_enable_cbk(); // 异步启动完成后，再做MTU和广播配置！
+        g_sle_stack_enabled = true;
     }
 }
 
@@ -118,7 +154,27 @@ errcode_t sle_uart_announce_register_cbks(void) {
 }
 
 errcode_t sle_uart_server_adv_init(void) {
-    sle_set_default_announce_param();
-    sle_set_default_announce_data();
-    return sle_start_announce(SLE_ADV_HANDLE_DEFAULT);
+    errcode_t ret;
+
+    if (g_adv_started) {
+        return ERRCODE_SUCC;
+    }
+    ret = sle_set_default_announce_param();
+    if (ret != ERRCODE_SUCC) {
+        osal_printk("[Server ADV] Set parameter failed:%x.\r\n", ret);
+        return ret;
+    }
+    ret = sle_set_default_announce_data();
+    if (ret != ERRCODE_SUCC) {
+        osal_printk("[Server ADV] Set data failed:%x.\r\n", ret);
+        return ret;
+    }
+    ret = sle_start_announce(SLE_ADV_HANDLE_DEFAULT);
+    if (ret == ERRCODE_SUCC) {
+        g_adv_started = true;
+        osal_printk("[Server ADV] Started \"SLE_SVR\".\r\n");
+    } else {
+        osal_printk("[Server ADV] Start failed:%x; watchdog will retry.\r\n", ret);
+    }
+    return ret;
 }

@@ -21,8 +21,16 @@ if(DEFINED CONFIG_SAMPLE_SUPPORT_SLE_GETAWAY)
 endif()
 # 在 products/CMakeLists.txt 中添加：
 
-if(DEFINED CONFIG_SAMPLE_SUPPORT_SLE_UART_SEVER)
-    add_subdirectory_if_exist(sle_uart_sever)
+if(DEFINED CONFIG_SAMPLE_SUPPORT_ROUTE AND DEFINED CONFIG_SAMPLE_SUPPORT_ROUTE_BRIDGE)
+    message(FATAL_ERROR "Select either the single-board SLE route or the dual-board route bridge, not both.")
+endif()
+
+if(DEFINED CONFIG_SAMPLE_SUPPORT_ROUTE)
+    add_subdirectory_if_exist(route)
+endif()
+
+if(DEFINED CONFIG_SAMPLE_SUPPORT_ROUTE_BRIDGE)
+    add_subdirectory_if_exist(route_bridge)
 endif()
 
 set(SOURCES "${SOURCES}" PARENT_SCOPE)

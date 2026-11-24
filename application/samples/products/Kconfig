@@ -48,19 +48,46 @@ endif
 
 # 在 products/Kconfig 文件末尾添加：
 
-config SAMPLE_SUPPORT_SLE_UART_SEVER
+config SAMPLE_SUPPORT_ROUTE
     bool
-    prompt "Support SLE UART SEVER sample."
+    prompt "Support SLE Route sample."
     default n
     depends on ENABLE_PRODUCTS_SAMPLE
     help
-        This option means support SLE UART SEVER Sample.
+        This option means support the SLE route sample.
 
-if SAMPLE_SUPPORT_SLE_UART_SEVER
-menu "SLE UART SEVER Sample Configuration"
-    osource "application/samples/products/sle_uart_sever/Kconfig"
+if SAMPLE_SUPPORT_ROUTE
+menu "SLE Route Sample Configuration"
+    osource "application/samples/products/route/Kconfig"
 endmenu
 endif
+
+config SAMPLE_SUPPORT_ROUTE_BRIDGE
+    bool
+    prompt "Support SLE dual-board route bridge sample."
+    default n
+    depends on ENABLE_PRODUCTS_SAMPLE && !SAMPLE_SUPPORT_ROUTE
+    help
+        Split each logical router into a pure SLE client board and a pure
+        SLE server board connected through UART1.
+
+if SAMPLE_SUPPORT_ROUTE_BRIDGE
+menu "SLE Dual-board Route Bridge Configuration"
+    osource "application/samples/products/route_bridge/Kconfig"
+endmenu
+endif
+
+config SLE_TWO_HOP_VALIDATION_MODE
+    bool
+    prompt "Enable SLE two-hop validation mode (Node1 -> R1 bridge -> Node6)"
+    default n
+    depends on (SAMPLE_SUPPORT_SLE_UART && SAMPLE_FILE_TRANSFER_MODE) || \
+        (SAMPLE_SUPPORT_ROUTE_BRIDGE && ROUTE_BRIDGE_NODE_ID = 1)
+    help
+        Keep this option disabled for the complete five-hop topology.
+        Enable it in the Node1, Node6, R1-RX and R1-TX builds to validate
+        Node1 -> R1-RX -> UART1 -> R1-TX -> Node6. In this mode R1-TX
+        advertises SLE_END and Node6 accepts an R1-only diagnostic path.
 
 
 
@@ -93,4 +120,3 @@ menu "SLE GATEWAY Sample Configuration"
     osource "application/samples/products/sle_gateway/Kconfig"
 endmenu
 endif
-

@@ -81,12 +81,15 @@ config DEBUG_UART_BAUDRATE
 config LOG_UART
     int
     prompt "log uart, select 3 means don't use this func"
-    range 0 3
+    range 3 3 if SAMPLE_SUPPORT_ROUTE_BRIDGE
+    range 0 3 if !SAMPLE_SUPPORT_ROUTE_BRIDGE
+    default 3 if SAMPLE_SUPPORT_ROUTE_BRIDGE
     default 1
 
 config LOG_UART_BAUDRATE
     int
     prompt "log uart's baudrate, default selected based on UARTx_BAUDRATE"
+    default 115200 if SAMPLE_SUPPORT_ROUTE_BRIDGE
     default UART0_BAUDRATE if LOG_UART = 0
     default UART1_BAUDRATE if LOG_UART = 1
     default UART2_BAUDRATE if LOG_UART = 2
@@ -133,7 +136,7 @@ config TESTSUIT_UART_BAUDRATE
 config DYNAMIC_UART_ID_BINDDING
     bool
     prompt "support specify uart bus id in runtime(may apply after reboot)"
-    depends on MIDDLEWARE_SUPPORT_NV
+    depends on MIDDLEWARE_SUPPORT_NV && !SAMPLE_SUPPORT_ROUTE_BRIDGE
     default n
 	
 config REG_WHITELIST

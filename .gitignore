@@ -1,3 +1,27 @@
 .deveco/**
 .vscode/**
 
+# Local caches, presentations and firmware recovery workspaces.
+__pycache__/
+*.py[cod]
+.venv/
+.codex_tmp/
+_ppt_build/
+/application/samples/products/tmp/
+*.log
+
+# Keep the six verified Stable260 images, not SDK build trees or local backups.
+/output/*
+!/output/Stable260-5Hop-Firmware-20260908-024441/
+/output/Stable260-5Hop-Firmware-20260908-024441/logs/
+
+# Keep only the selected runnable Stable260 GUI and Ubuntu 24.04 packages.
+/application/tools/*/build/
+/application/tools/*/release/
+/application/tools/sle_transfer_gui/dist/*
+!/application/tools/sle_transfer_gui/dist/SLE-5Hop-Transfer-Stable260.exe
+/application/tools/sle_transfer_gui_ubuntu2404/dist/
+/application/tools/release/*
+!/application/tools/release/NearLink-SLE-5Hop-Transfer-Stable260-Ubuntu24.04.tar.gz
+!/application/tools/release/sle-5hop-transfer-stable260_1.0.0-1_all.deb
+

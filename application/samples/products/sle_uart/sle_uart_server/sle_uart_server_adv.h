@@ -10,6 +10,7 @@
 #ifndef SLE_SERVER_ADV_H
 #define SLE_SERVER_ADV_H
 
+#include <stdbool.h>
 #include "errcode.h"        // [修复] 确保引用 errcode_t
 #include "sle_common.h"     // [修复] 引用通用定义
 
@@ -47,6 +48,8 @@ typedef enum sle_adv_data {
 
 errcode_t sle_dev_register_cbks(void);
 errcode_t sle_uart_server_adv_init(void);
+void sle_uart_server_adv_mark_stopped(void);
+bool sle_uart_server_stack_is_enabled(void);
 
 errcode_t sle_uart_announce_register_cbks(void);
 

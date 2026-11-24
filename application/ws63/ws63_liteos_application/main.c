@@ -244,16 +244,20 @@ static void patch_init(void)
 #ifndef CHIP_EDA
 static void app_main(const void *unused)
 {
+#if !defined(CONFIG_SAMPLE_FILE_TRANSFER_MODE)
     LOS_MEM_POOL_STATUS status;
+#endif
     UNUSED(unused);
     (void)osDelay(100); // 100: 100tiks = 1s
     systick_cali_xclk_bottom_half();
     while (1) {
         (void)osDelay(APP_MAIN_DELAY_TIME);
+#if !defined(CONFIG_SAMPLE_FILE_TRANSFER_MODE)
         LOS_MemInfoGet(m_aucSysMem0, &status);
-        PRINT("[SYS INFO] mem: used:%u, free:%u; log: drop/all[%u/%u], at_recv %u.\r\n", status.uwTotalUsedSize,
-            status.uwTotalFreeSize, log_get_missed_messages_count(), log_get_all_messages_count(),
-            at_uart_get_rcv_cnt());
+        //PRINT("[SYS INFO] mem: used:%u, free:%u; log: drop/all[%u/%u], at_recv %u.\r\n", status.uwTotalUsedSize,
+           // status.uwTotalFreeSize, log_get_missed_messages_count(), log_get_all_messages_count(),
+            //at_uart_get_rcv_cnt());
+#endif
 
 #if defined(CONFIG_UART_SUPPORT_RX_THREAD)
 #if defined(CONFIG_UART_SUPPORT_RX_THREAD_DEBUG)

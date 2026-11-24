@@ -10,6 +10,7 @@
 #ifndef SLE_UART_SERVER_H
 #define SLE_UART_SERVER_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "sle_ssap_server.h"
 #include "errcode.h"
@@ -51,6 +52,8 @@ typedef void (*sle_uart_server_msg_queue)(uint8_t *buffer_addr, uint16_t buffer_
 void sle_uart_server_register_msg(sle_uart_server_msg_queue sle_uart_server_msg);
 
 uint16_t get_connect_id(void);
+void sle_uart_server_watchdog_tick(void);
+bool sle_uart_server_force_reconnect(void);
 
 /* 暴露回调函数供主从一体模式使用 */
 void sle_connect_state_changed_cbk(uint16_t conn_id, const sle_addr_t *addr,

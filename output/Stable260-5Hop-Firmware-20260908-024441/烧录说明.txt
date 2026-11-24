@@ -1,0 +1,16 @@
+NearLink SLE 主从一体五跳 Stable260 烧录包
+
+烧录顺序与文件：
+1. Node1 -> 01_Node1_SLE_Server_Stable260.fwpkg
+2. R1    -> 02_R1_SLE_Route_ID1_Stable260.fwpkg
+3. R2    -> 03_R2_SLE_Route_ID2_Stable260.fwpkg
+4. R3    -> 04_R3_SLE_Route_ID3_Stable260.fwpkg
+5. R4    -> 05_R4_SLE_Route_ID4_Stable260.fwpkg
+6. Node6 -> 06_Node6_SLE_Client_Stable260.fwpkg
+
+拓扑：Node1 -> R1 -> R2 -> R3 -> R4 -> Node6
+Node1 和 Node6 的 USB 串口参数：921600 8N1
+完整五跳模式已关闭两跳验证开关；R1-R4 使用户外长监督超时。
+上位机：application\tools\sle_transfer_gui\dist\SLE-5Hop-Transfer-Stable260.exe
+
+烧录后必须以 Node6 文件长度及 SHA-256 校验结果作为最终成功依据。
